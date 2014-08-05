@@ -36,6 +36,38 @@ typedef struct {
 } OtPruneData;
 
 static gboolean
+prune_commitpartial_file (OstreeRepo    *repo,
+                          const char    *checksum,
+                          guint64       *out_size,
+                          GCancellable  *cancellable,
+                          GError       **error)
+{
+  gboolean ret = FALSE;
+  gs_unref_object GFile *objpath = g_file_new_for_path(g_strdup_printf ("%s/state/%s.commitpartial", 
+                        g_file_get_path (repo->repodir), checksum));
+  gs_unref_object GFileInfo *finfo = NULL;
+
+  if (g_file_query_exists  (objpath, cancellable))
+    {
+      finfo = g_file_query_info (objpath, OSTREE_GIO_FAST_QUERYINFO,
+                                 G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                 cancellable, error);
+      if (!finfo)
+        goto out;
+
+
+      *out_size = g_file_info_get_size (finfo);
+
+      if (!gs_file_unlink (objpath, cancellable, error))
+        goto out;
+    }
+
+  ret = TRUE;
+ out:
+  return ret;
+}
+
+static gboolean
 maybe_prune_loose_object (OtPruneData        *data,
                           OstreeRepoPruneFlags    flags,
                           const char         *checksum,
@@ -53,6 +85,13 @@ maybe_prune_loose_object (OtPruneData        *data,
       if (!(flags & OSTREE_REPO_PRUNE_FLAGS_NO_PRUNE))
         {
           guint64 storage_size = 0;
+          guint64 commitpartial_size = 0;
+
+          if (objtype == OSTREE_OBJECT_TYPE_COMMIT)
+            {
+              if (!prune_commitpartial_file (data->repo, checksum, &commitpartial_size, cancellable, error))
+                goto out;
+            }
 
           if (!ostree_repo_query_object_storage_size (data->repo, objtype, checksum,
                                                       &storage_size, cancellable, error))
@@ -62,7 +101,7 @@ maybe_prune_loose_object (OtPruneData        *data,
                                           cancellable, error))
             goto out;
 
-          data->freed_bytes += storage_size;
+          data->freed_bytes += (storage_size + commitpartial_size);
         }
       if (OSTREE_OBJECT_TYPE_IS_META (objtype))
         data->n_unreachable_meta++;
