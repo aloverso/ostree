@@ -447,8 +447,6 @@ scan_dirtree_object (OtPullData   *pull_data,
       if (nextslash)
         {
           subdir_target = g_strndup (subpath, nextslash - subpath); // refers to first dir, like "usr"
-          //next = g_strdup (nextslash); // next is equal to nextslash
-          //g_free (pull_data->dir); 
           pull_data->dir = g_strdup (nextslash); // sets dir to new deeper level like "/share/rpm"
         }
       else // we're as deep as it goes, i.e. subpath = "rpm"
@@ -463,7 +461,6 @@ scan_dirtree_object (OtPullData   *pull_data,
 
   for (i = 0; i < n; i++)
     {
-      //const char *dirname;
       gs_unref_variant GVariant *tree_csum = NULL;
       gs_unref_variant GVariant *meta_csum = NULL;
 
@@ -1299,21 +1296,21 @@ ostree_repo_pull_one_dir (OstreeRepo               *self,
         }
     }
 
-  if (!g_file_query_exists (g_file_new_for_path (g_strdup_printf ("%s/state", g_file_get_path (pull_data->repo->repodir))), cancellable)) 
-    {
-      if (!g_file_make_directory (g_file_get_child (pull_data->repo->repodir, "state"), cancellable, error))
-        goto out;
-    }
+  if (!gs_file_ensure_directory (pull_data->repo->state_dir, FALSE, pull_data->cancellable, error))
+    goto out;
 
   commitpartial_file = g_file_new_for_path (g_strdup_printf ("%s/state/%s.commitpartial", 
                         g_file_get_path (pull_data->repo->repodir), checksum_for_file));
 
-  pull_data->commitpartial_exists = g_file_query_exists (commitpartial_file, cancellable);
+  pull_data->commitpartial_exists = g_file_query_exists (commitpartial_file, pull_data->cancellable);
 
 
   if (!pull_data->commitpartial_exists) 
-      g_file_replace_contents (commitpartial_file, "", 0, NULL, FALSE, 
-                               G_FILE_CREATE_REPLACE_DESTINATION, NULL, cancellable, error);
+    {
+      if (!g_file_replace_contents (commitpartial_file, "", 0, NULL, FALSE, 
+                               G_FILE_CREATE_REPLACE_DESTINATION, NULL, cancellable, error))
+        goto out;
+    } 
 
   pull_data->phase = OSTREE_PULL_PHASE_FETCHING_OBJECTS;
 
@@ -1403,7 +1400,10 @@ ostree_repo_pull_one_dir (OstreeRepo               *self,
     }
 
   if (pull_data->commitpartial_exists && !dir_to_pull)
-    gs_file_unlink (commitpartial_file, cancellable, error);
+    {
+      if (!ot_gfile_ensure_unlinked (commitpartial_file, cancellable, error))
+        goto out;
+    }
 
   ret = TRUE;
  out:

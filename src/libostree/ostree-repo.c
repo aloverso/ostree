@@ -100,6 +100,7 @@ ostree_repo_finalize (GObject *object)
   if (self->objects_dir_fd != -1)
     (void) close (self->objects_dir_fd);
   g_clear_object (&self->deltas_dir);
+  g_clear_object (&self->state_dir);
   g_clear_object (&self->uncompressed_objects_dir);
   if (self->uncompressed_objects_dir_fd != -1)
     (void) close (self->uncompressed_objects_dir_fd);
