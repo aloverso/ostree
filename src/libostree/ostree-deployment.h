@@ -58,6 +58,17 @@ void ostree_deployment_set_origin (OstreeDeployment *self, GKeyFile *origin);
 
 OstreeDeployment *ostree_deployment_clone (OstreeDeployment *self);
 
+gboolean ostree_deployment_get_name (OstreeDeployment *self,
+		                             GFile            *path_to_customs,
+		                             char            **out_name,
+		                             GError          **error);
+
+gboolean ostree_deployment_set_custom_name (char          *checksum,
+		                                    char          *custom_name,    
+		                                    GFile         *path_to_customs,
+		                                    GCancellable  *cancellable,
+		                                    GError       **error);
+
 
 G_END_DECLS
 
